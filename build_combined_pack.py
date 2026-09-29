@@ -52,6 +52,12 @@ EXCLUDE_EXACT = {
     
     # 3. 138-byte transparent placeholder from patch that hides cow if referenced
     'assets/minecraft/textures/entity/reimagined_cow/cow.png',
+    
+    # 4. Old uncolored / unneeded sheep files from RE base
+    'assets/minecraft/optifine/random/entity/sheep/sheep2.png',
+    'assets/minecraft/optifine/random/entity/sheep/sheep3.png',
+    'assets/minecraft/optifine/random/entity/sheep/fix_eye.png',
+    'assets/minecraft/optifine/random/entity/reimagined_sheep/sheep_colors.pdn',
 }
 
 # Prefixes to remove (outdated 256x128 random textures / properties from Reimagined base)
@@ -64,7 +70,6 @@ EXCLUDE_PREFIXES = (
     'assets/minecraft/optifine/random/entity/pig/pig_temperate',
     'assets/minecraft/optifine/random/entity/chicken/chicken_temperate',
     'assets/minecraft/optifine/random/entity/chicken/chicken_warm',
-    'assets/minecraft/optifine/random/entity/sheep/sheep.properties', # replaced by reimagined_sheep/
 )
 
 MCMETA_OVERLAYS = [
@@ -213,6 +218,20 @@ def main():
 
         extra_files['assets/minecraft/optifine/random/entity/chicken/chicken_temperate.properties'] = patch_zf.read('assets/minecraft/optifine/random/entity/chicken/temperate_chicken.properties')
 
+        # 4. Map sheep properties and textures from reimagined_sheep to sheep
+        sheep_props = patch_zf.read('assets/minecraft/optifine/random/entity/reimagined_sheep/sheep.properties')
+        extra_files['assets/minecraft/optifine/random/entity/sheep/sheep.properties'] = sheep_props
+        
+        for name in patch_zf.namelist():
+            if name.startswith('assets/minecraft/optifine/random/entity/reimagined_sheep/') and name.endswith('.png'):
+                filename = os.path.basename(name)
+                extra_files[f'assets/minecraft/optifine/random/entity/sheep/{filename}'] = patch_zf.read(name)
+
+        # Fix sheep_wool_undercoat.jem animation model reference (typo in patch: undercoat_animations.jpm -> sheep_animations.jpm)
+        undercoat_jem_bytes = patch_zf.read('assets/minecraft/optifine/cem/sheep_wool_undercoat.jem')
+        undercoat_jem_fixed = undercoat_jem_bytes.decode('utf-8').replace('sheep_wool_undercoat_animations.jpm', 'sheep_animations.jpm')
+        extra_files['assets/minecraft/optifine/cem/sheep_wool_undercoat.jem'] = undercoat_jem_fixed.encode('utf-8')
+
         print(f"Generated {len(extra_files)} compatibility alias files.")
 
         # Write output zip
@@ -231,8 +250,9 @@ def main():
 
             # 3. Write all mapped files
             count = 0
-            total = len(file_registry) + len(extra_files)
-            for arcname, (src_zip_path, src_entry) in file_registry.items():
+            files_to_write = {arcname: val for arcname, val in file_registry.items() if arcname not in extra_files}
+            total = len(files_to_write) + len(extra_files)
+            for arcname, (src_zip_path, src_entry) in files_to_write.items():
                 data = open_zips[src_zip_path].read(src_entry)
                 out_zf.writestr(arcname, data)
                 count += 1
@@ -265,9 +285,12 @@ def main():
     print(f"File Size: {file_size:,} bytes ({file_size / (1024*1024):.2f} MB)")
     print(f"SHA-1 Hash: {pack_hash}")
 
-    # Copy to client profile resourcepacks
-    shutil.copy2(OUTPUT_PACK, CLIENT_PACK)
-    print(f"Copied to client: {CLIENT_PACK}")
+    # Copy to client profile resourcepacks if available
+    if os.path.exists(os.path.dirname(CLIENT_PACK)):
+        shutil.copy2(OUTPUT_PACK, CLIENT_PACK)
+        print(f"Copied to client: {CLIENT_PACK}")
+    else:
+        print(f"Client profile directory not accessible (drive disconnected), skipped local profile copy.")
 
     # Also update client cache directly!
     if os.path.exists(CLIENT_DOWNLOADS):

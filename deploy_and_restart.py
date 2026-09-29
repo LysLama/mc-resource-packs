@@ -6,7 +6,7 @@ REMOTE_HOST = '192.168.2.16'
 USERNAME = 'lyslama'
 PASSWORD = 'LysLama@2112'
 PROPERTIES_PATH = '/home/lyslama/minecraft/server.properties'
-NEW_SHA1 = '8d5b0e88e8405cc7cd43e3b9ebc69080cb2ea210'
+NEW_SHA1 = '8c2d573d50b6102d7349b9cd76fc5aee32fa9383'
 
 def run_cmd(ssh, cmd):
     stdin, stdout, stderr = ssh.exec_command(cmd)

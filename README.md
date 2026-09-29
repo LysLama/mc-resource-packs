@@ -14,7 +14,7 @@ This merged package contains all visual enhancements combined into a single file
 ### Details:
 * **File**: `Server_Combined_Pack.zip`
 * **Direct Download URL**: `https://raw.githubusercontent.com/LysLama/mc-resource-packs/main/Server_Combined_Pack.zip`
-* **SHA-1 Hash**: `8d5b0e88e8405cc7cd43e3b9ebc69080cb2ea210`
+* **SHA-1 Hash**: `8c2d573d50b6102d7349b9cd76fc5aee32fa9383`
 * **Size**: ~34.95 MB
 
 ## 2. Recommended Layer Order (If using individual packs in Client Resource Packs menu)
