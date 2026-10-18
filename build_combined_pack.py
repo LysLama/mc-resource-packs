@@ -19,7 +19,6 @@ PACK_ORDER = [
     'Fusion 3D Items v1.0.1 for Minecraft 1.20-1.21.8.zip',
     'Fusion Block Transitions v1.0.3 for Minecraft 1.20-1.21.8.zip',
     'Fusion Emissive Ores v1.0.2 for Minecraft 1.20-1.21.8.zip',
-    'Fusion Stacking Items v1.0.1 for Minecraft 1.20-1.21.8.zip',
     # 3. Refined Tools (3D tool models)
     'Refined Tools 3.0.zip',
     # 4. Fresh Animations (Base animation logic and rigs)
@@ -93,8 +92,6 @@ MCMETA_OVERLAYS = [
     {"directory": "26-1", "formats": {"min_inclusive": 82, "max_inclusive": 99}, "min_format": 82, "max_format": 99},
     {"formats": [20, 1000], "min_format": 20, "max_format": 1000, "directory": "pack_format_20"},
     {"formats": [88, 1000], "min_format": 88, "max_format": 1000, "directory": "pack_format_88"},
-    {"formats": [24, 1000], "min_format": 24, "max_format": 1000, "directory": "pack_format_24"},
-    {"formats": [51, 1000], "min_format": 51, "max_format": 1000, "directory": "pack_format_51"},
     {"formats": [67, 1000], "min_format": 67, "max_format": 1000, "directory": "pack_format_67"},
     {"formats": [40, 1000], "min_format": 40, "max_format": 1000, "directory": "pack_format_40"}
 ]
