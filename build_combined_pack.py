@@ -290,6 +290,37 @@ def main():
         }
         extra_files['assets/minecraft/font/default.json'] = json.dumps(merged_font, indent=2).encode('utf-8')
 
+        # 8. Fix Villager Trading GUI shopkeeper sprite sheets on 26.2+ / 26.3
+        # (In 26.2+, Reimagined disabled core/text.vsh, causing \uE026..\uE031 to draw all 22/88 animation frames as a giant grid.
+        #  Cropping each 256x256 sheet to Frame 0 while preserving the 1/255 alpha width marker at (0,0) and (255,0) renders the shopkeeper cleanly!)
+        shopkeeper_dirs = [
+            'assets/minecraft/textures/gui/sprites/shopkeeper',
+            'assets/minecraft/textures/gui/sprites/container/shopkeeper',
+            '26.2/assets/minecraft/textures/gui/sprites/shopkeeper',
+        ]
+        for sdir in shopkeeper_dirs:
+            for idx in range(1, 6):
+                spath = f'{sdir}/villager_idle{idx}.png'
+                if spath in re_zf.namelist():
+                    src_im = Image.open(io.BytesIO(re_zf.read(spath))).convert('RGBA')
+                    clean_im = Image.new('RGBA', (256, 256), (0, 0, 0, 0))
+                    clean_im.paste(src_im.crop((0, 0, 128, 22)), (0, 0))
+                    clean_im.putpixel((0, 0), (0, 0, 0, 1))
+                    clean_im.putpixel((255, 0), (0, 0, 0, 1))
+                    buf = io.BytesIO()
+                    clean_im.save(buf, format='PNG')
+                    extra_files[spath] = buf.getvalue()
+            epath = f'{sdir}/villager_eyes1.png'
+            if epath in re_zf.namelist():
+                src_im = Image.open(io.BytesIO(re_zf.read(epath))).convert('RGBA')
+                clean_im = Image.new('RGBA', (256, 256), (0, 0, 0, 0))
+                clean_im.paste(src_im.crop((0, 0, 32, 16)), (0, 0))
+                clean_im.putpixel((0, 0), (0, 0, 0, 1))
+                clean_im.putpixel((255, 0), (0, 0, 0, 1))
+                buf = io.BytesIO()
+                clean_im.save(buf, format='PNG')
+                extra_files[epath] = buf.getvalue()
+
         print(f"Generated {len(extra_files)} compatibility alias files.")
 
         # Write output zip
