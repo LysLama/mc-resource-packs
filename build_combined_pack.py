@@ -265,6 +265,22 @@ def main():
         undercoat_jem_fixed = undercoat_jem_bytes.decode('utf-8').replace('sheep_wool_undercoat_animations.jpm', 'sheep_animations.jpm')
         extra_files['assets/minecraft/optifine/cem/sheep_wool_undercoat.jem'] = undercoat_jem_fixed.encode('utf-8')
 
+        # 5. Restore mooshroom_animations.jpm (removed in FA v1.11, but required by FA-PATCH cow.jem & mooshroom.jem)
+        fa_zip_path = os.path.join(INDIVIDUAL_DIR, 'FreshAnimations_v1.11_26.1+.zip')
+        fa_zf = open_zips[fa_zip_path]
+        cow_jpm = json.loads(fa_zf.read('assets/minecraft/optifine/cem/cow_animations.jpm').decode('utf-8'))
+        cow_jpm['animations'][0] = {
+            "varb.21_2_plus": "true",
+            "varb.baby_model": "false",
+            "varb.is_mooshroom": "true",
+            **cow_jpm['animations'][0]
+        }
+        extra_files['assets/minecraft/optifine/cem/mooshroom_animations.jpm'] = json.dumps(cow_jpm).encode('utf-8')
+
+        # 6. Preserve FA v1.11's native 26.1+ baby CEM models over outdated 1.21.5 baby models in FA-PATCH
+        extra_files['assets/minecraft/optifine/cem/chicken_baby.jem'] = fa_zf.read('assets/minecraft/optifine/cem/chicken_baby.jem')
+        extra_files['assets/minecraft/optifine/cem/mooshroom_baby.jem'] = fa_zf.read('assets/minecraft/optifine/cem/mooshroom_baby.jem')
+
         print(f"Generated {len(extra_files)} compatibility alias files.")
 
         # Write output zip
