@@ -3,12 +3,14 @@ import zipfile
 import json
 import hashlib
 import shutil
+import io
+from PIL import Image
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INDIVIDUAL_DIR = os.path.join(BASE_DIR, 'individual')
 OUTPUT_PACK = os.path.join(BASE_DIR, 'Server_Combined_Pack.zip')
-CLIENT_PACK = r'E:\ModrinthApp\profiles\Fabric 26.3\resourcepacks\Server_Combined_Pack.zip'
-CLIENT_DOWNLOADS = r'E:\ModrinthApp\profiles\Fabric 26.3\downloads\7b9e4ba1-3fda-3d19-a50d-32a39e55fee0'
+CLIENT_PACK = r'D:\ModrinthApp\profiles\Yoel Lezly\resourcepacks\Server_Combined_Pack.zip'
+CLIENT_DOWNLOADS = r'D:\ModrinthApp\profiles\Yoel Lezly\downloads\7b9e4ba1-3fda-3d19-a50d-32a39e55fee0'
 
 PACK_ORDER = [
     # 1. Base Layer: Minecraft Reimagined (textures, sounds, models)
@@ -22,7 +24,7 @@ PACK_ORDER = [
     # 3. Refined Tools (3D tool models)
     'Refined Tools 3.0.zip',
     # 4. Fresh Animations (Base animation logic and rigs)
-    'FreshAnimations_v1.10.5.zip',
+    'FreshAnimations_v1.11_26.1+.zip',
     # 5. Top Priority: Reimagined Fresh Animations Compatibility Patch
     '§aReimagined§8-§aFA-PATCH§0.zip'
 ]
@@ -33,12 +35,24 @@ EXCLUDE_EXACT = {
     'assets/minecraft/optifine/cem/cow.properties',
     'assets/minecraft/optifine/cem/cold_cow.properties',
     'assets/minecraft/optifine/cem/warm_cow.properties',
+    'assets/minecraft/optifine/cem/cow_baby.properties',
+    'assets/minecraft/optifine/cem/cold_cow_baby.properties',
+    'assets/minecraft/optifine/cem/warm_cow_baby.properties',
+    'assets/minecraft/optifine/cem/mooshroom.properties',
+    'assets/minecraft/optifine/cem/mooshroom_baby.properties',
     'assets/minecraft/optifine/cem/pig.properties',
     'assets/minecraft/optifine/cem/cold_pig.properties',
     'assets/minecraft/optifine/cem/warm_pig.properties',
+    'assets/minecraft/optifine/cem/pig_baby.properties',
+    'assets/minecraft/optifine/cem/cold_pig_baby.properties',
+    'assets/minecraft/optifine/cem/warm_pig_baby.properties',
+    'assets/minecraft/optifine/cem/chicken.properties',
     'assets/minecraft/optifine/cem/cold_chicken.properties',
     'assets/minecraft/optifine/cem/warm_chicken.properties',
-    'assets/minecraft/optifine/cem/mooshroom.properties',
+    'assets/minecraft/optifine/cem/chicken_baby.properties',
+    'assets/minecraft/optifine/cem/cold_chicken_baby.properties',
+    'assets/minecraft/optifine/cem/warm_chicken_baby.properties',
+    'assets/minecraft/optifine/cem/goat_baby.properties',
     
     # 2. 64x64 FreshAnimations textures that conflict with 512x256 patch textures
     'assets/minecraft/textures/entity/cow/cow_temperate.png',
@@ -215,14 +229,36 @@ def main():
 
         extra_files['assets/minecraft/optifine/random/entity/chicken/chicken_temperate.properties'] = patch_zf.read('assets/minecraft/optifine/random/entity/chicken/temperate_chicken.properties')
 
-        # 4. Map sheep properties and textures from reimagined_sheep to sheep
+        # 4. Map sheep properties and textures from reimagined_sheep to sheep (and repair missing pupil / eye UV)
         sheep_props = patch_zf.read('assets/minecraft/optifine/random/entity/reimagined_sheep/sheep.properties')
         extra_files['assets/minecraft/optifine/random/entity/sheep/sheep.properties'] = sheep_props
         
         for name in patch_zf.namelist():
-            if name.startswith('assets/minecraft/optifine/random/entity/reimagined_sheep/') and name.endswith('.png'):
+            if (name.startswith('assets/minecraft/optifine/random/entity/reimagined_sheep/') or 
+                name.startswith('assets/minecraft/optifine/random/entity/sheep/')) and name.endswith('.png'):
                 filename = os.path.basename(name)
-                extra_files[f'assets/minecraft/optifine/random/entity/sheep/{filename}'] = patch_zf.read(name)
+                raw_png = patch_zf.read(name)
+
+                # Repair eye UV / pixel alignment for Fresh Animations CEM
+                img = Image.open(io.BytesIO(raw_png)).convert('RGBA')
+                # Fix right eye (viewer's left): pupil at (1, 6), white sclera at (1, 7) and (2, 7)
+                img.putpixel((1, 6), (8, 8, 8, 255))
+                img.putpixel((1, 7), (255, 255, 255, 255))
+                img.putpixel((2, 7), (255, 255, 255, 255))
+                # Fix left eye (viewer's right): pupil at (6, 6), white sclera at (5, 7) and (6, 7)
+                img.putpixel((6, 6), (8, 8, 8, 255))
+                img.putpixel((5, 7), (255, 255, 255, 255))
+                img.putpixel((6, 7), (255, 255, 255, 255))
+                # Clear misplaced pixel at (4, 6) if it was erroneously placed there
+                if img.getpixel((4, 6)) == (8, 8, 8, 255):
+                    img.putpixel((4, 6), (0, 0, 0, 0))
+
+                buf = io.BytesIO()
+                img.save(buf, format='PNG')
+                fixed_png_bytes = buf.getvalue()
+
+                extra_files[f'assets/minecraft/optifine/random/entity/sheep/{filename}'] = fixed_png_bytes
+                extra_files[f'assets/minecraft/optifine/random/entity/reimagined_sheep/{filename}'] = fixed_png_bytes
 
         # Fix sheep_wool_undercoat.jem animation model reference (typo in patch: undercoat_animations.jpm -> sheep_animations.jpm)
         undercoat_jem_bytes = patch_zf.read('assets/minecraft/optifine/cem/sheep_wool_undercoat.jem')
