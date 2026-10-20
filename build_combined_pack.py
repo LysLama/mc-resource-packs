@@ -281,6 +281,15 @@ def main():
         extra_files['assets/minecraft/optifine/cem/chicken_baby.jem'] = fa_zf.read('assets/minecraft/optifine/cem/chicken_baby.jem')
         extra_files['assets/minecraft/optifine/cem/mooshroom_baby.jem'] = fa_zf.read('assets/minecraft/optifine/cem/mooshroom_baby.jem')
 
+        # 7. Merge assets/minecraft/font/default.json from Reimagined and FA-PATCH
+        # (Prevent FA-PATCH's single-provider default.json from overwriting Reimagined's 22 custom GUI bitmap fonts & space shifts!)
+        re_font = json.loads(re_zf.read('assets/minecraft/font/default.json').decode('utf-8'))
+        patch_font = json.loads(patch_zf.read('assets/minecraft/font/default.json').decode('utf-8'))
+        merged_font = {
+            "providers": re_font.get("providers", []) + patch_font.get("providers", [])
+        }
+        extra_files['assets/minecraft/font/default.json'] = json.dumps(merged_font, indent=2).encode('utf-8')
+
         print(f"Generated {len(extra_files)} compatibility alias files.")
 
         # Write output zip
@@ -343,6 +352,14 @@ def main():
 
     # Also update client cache directly!
     if os.path.exists(CLIENT_DOWNLOADS):
+        for existing_file in os.listdir(CLIENT_DOWNLOADS):
+            existing_path = os.path.join(CLIENT_DOWNLOADS, existing_file)
+            if os.path.isfile(existing_path):
+                try:
+                    shutil.copy2(OUTPUT_PACK, existing_path)
+                    print(f"Updated active client cache file: {existing_path}")
+                except Exception as e:
+                    print(f"Could not overwrite {existing_path}: {e}")
         cached_file_path = os.path.join(CLIENT_DOWNLOADS, pack_hash)
         shutil.copy2(OUTPUT_PACK, cached_file_path)
         print(f"Updated client downloads cache: {cached_file_path}")
