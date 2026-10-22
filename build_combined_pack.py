@@ -26,7 +26,9 @@ PACK_ORDER = [
     # 4. Fresh Animations (Base animation logic and rigs)
     'FreshAnimations_v1.11_26.1+.zip',
     # 5. Top Priority: Reimagined Fresh Animations Compatibility Patch
-    '§aReimagined§8-§aFA-PATCH§0.zip'
+    '§aReimagined§8-§aFA-PATCH§0.zip',
+    # 6. Lively Turtle Helmet (Top Priority - Animated Turtle & Model Override)
+    'Lively Turtle Helmet.zip'
 ]
 
 # Problematic files from FreshAnimations or Reimagined base that break CEM / ETF when FA Patch is active
