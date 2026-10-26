@@ -324,6 +324,25 @@ def main():
                 clean_im.save(buf, format='PNG')
                 extra_files[epath] = buf.getvalue()
 
+        # 9. Lectern book CEM: add explicit "texture" so EMF forces entityTranslucent instead of
+        #    vanilla BookModel's RenderTypes::entitySolid (which paints alpha=0 pixels of the
+        #    36x36 'floor' magic-circle plane as an opaque black square). Geometry is untouched.
+        #    See knowledge_base/resourcepacks/reimagined/lectern-black-square-fix.md
+        BOOK_TEX = "textures/entity/enchantment/enchanting_table_book.png"
+        def _tag_texture(node):
+            node["texture"] = BOOK_TEX
+            for sub in node.get("submodels", []):
+                _tag_texture(sub)
+        for jem_name in ("assets/minecraft/optifine/cem/lectern_book.jem",
+                         "assets/minecraft/optifine/cem/lectern_book2.jem"):
+            if jem_name in re_zf.namelist():
+                jem = json.loads(re_zf.read(jem_name).decode("utf-8-sig"))
+                jem["texture"] = BOOK_TEX
+                for part in jem.get("models", []):
+                    if part.get("part") == "book_spine":
+                        _tag_texture(part)
+                extra_files[jem_name] = json.dumps(jem, indent="\t").encode("utf-8")
+
         print(f"Generated {len(extra_files)} compatibility alias files.")
 
         # Write output zip
