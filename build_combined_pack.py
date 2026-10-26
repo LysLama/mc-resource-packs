@@ -341,6 +341,22 @@ def main():
                 for part in jem.get("models", []):
                     if part.get("part") == "book_spine":
                         _tag_texture(part)
+                        if "animations" in part:
+                            new_anims = []
+                            for anim in part["animations"]:
+                                new_anim = {}
+                                for k, expr in anim.items():
+                                    if isinstance(expr, str):
+                                        expr = expr.replace("time / 16", "frame_counter / 48")
+                                        expr = expr.replace("time * 0.3", "frame_counter * 0.1")
+                                        expr = expr.replace("time * 0.1", "frame_counter * 0.0333")
+                                        expr = expr.replace("time * 0.25", "frame_counter * 0.0833")
+                                        expr = expr.replace("time * 0.2", "frame_counter * 0.0666")
+                                        expr = expr.replace("time * 0.05", "frame_counter * 0.0166")
+                                        expr = expr.replace("time", "(frame_counter / 3)")
+                                    new_anim[k] = expr
+                                new_anims.append(new_anim)
+                            part["animations"] = new_anims
                 extra_files[jem_name] = json.dumps(jem, indent="\t").encode("utf-8")
 
         print(f"Generated {len(extra_files)} compatibility alias files.")
