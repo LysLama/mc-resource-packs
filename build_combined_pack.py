@@ -14,7 +14,7 @@ CLIENT_DOWNLOADS = r'D:\ModrinthApp\profiles\Yoel Lezly\downloads\7b9e4ba1-3fda-
 
 PACK_ORDER = [
     # 1. Base Layer: Minecraft Reimagined (textures, sounds, models)
-    '§aReimagined§0_§8[v1.63.5-fixed]§0.zip',
+    '§aReimagined§0_§8[v1.63.7]§0.zip',
     # 2. Fusion Enhancement Packs
     'Fusion Connected Blocks v1.1.0 for Minecraft 1.20-26.2.zip',
     'Fusion Connected Glass v1.0.1 for Minecraft 1.20-1.21.8.zip',
@@ -184,7 +184,7 @@ def main():
             open_zips[os.path.join(INDIVIDUAL_DIR, pack_name)] = zipfile.ZipFile(os.path.join(INDIVIDUAL_DIR, pack_name), 'r')
 
         patch_zip_path = os.path.join(INDIVIDUAL_DIR, '§aReimagined§8-§aFA-PATCH§0.zip')
-        reimagined_zip_path = os.path.join(INDIVIDUAL_DIR, '§aReimagined§0_§8[v1.63.5-fixed]§0.zip')
+        reimagined_zip_path = os.path.join(INDIVIDUAL_DIR, '§aReimagined§0_§8[v1.63.7]§0.zip')
         patch_zf = open_zips[patch_zip_path]
         re_zf = open_zips[reimagined_zip_path]
 
