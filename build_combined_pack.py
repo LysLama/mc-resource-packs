@@ -324,29 +324,52 @@ def main():
                 clean_im.save(buf, format='PNG')
                 extra_files[epath] = buf.getvalue()
 
-        # 9. Lectern book CEM: add explicit "texture" so EMF forces entityTranslucent instead of
-        #    vanilla BookModel's RenderTypes::entitySolid (which paints alpha=0 pixels of the
-        #    36x36 'floor' magic-circle plane as an opaque black square). Geometry is untouched.
+        # 9. Book CEM sanitization (Lectern & Enchanting Table):
+        #    In vanilla 26.3, BookModel uses RenderTypes::entitySolid which lacks alpha cutout/blending.
+        #    Upstream Reimagined defined a flat 2D 'floor' quad (36x36 on lectern, 44x44 on enchanting table)
+        #    for a magic floor circle. In 26.3 solid rendering, alpha=0 pixels around the circle render as
+        #    an opaque black square (or bluish-gray fog square if forced to translucent).
+        #    In fact, upstream Reimagined already blanked out this floor circle in 26.3 overlay texture,
+        #    leaving the 'floor' quad as an orphaned artifact.
+        #    Here we strip the 'floor' quad and 'scale_circle' from all book .jem models, while preserving
+        #    the 3D book model, page animations, and floating rune particles ('symbol1'..'symbol8').
+        #    For Lectern (which lacks 'time' in its render state), particle animations are converted from
+        #    'time' to 'frame_counter' to eliminate the 20Hz reset jitter.
         #    See knowledge_base/resourcepacks/reimagined/lectern-black-square-fix.md
-        BOOK_TEX = "textures/entity/enchantment/enchanting_table_book.png"
-        def _tag_texture(node):
-            node["texture"] = BOOK_TEX
-            for sub in node.get("submodels", []):
-                _tag_texture(sub)
-        for jem_name in ("assets/minecraft/optifine/cem/lectern_book.jem",
-                         "assets/minecraft/optifine/cem/lectern_book2.jem"):
+        def _clean_submodels(submodels):
+            cleaned = []
+            for s in submodels:
+                if s.get("id") in ("floor", "scale_circle"):
+                    continue
+                if "submodels" in s:
+                    s["submodels"] = _clean_submodels(s["submodels"])
+                cleaned.append(s)
+            return cleaned
+
+        book_jems = [
+            "assets/minecraft/optifine/cem/lectern_book.jem",
+            "assets/minecraft/optifine/cem/lectern_book2.jem",
+            "assets/minecraft/optifine/cem/enchanting_book.jem",
+            "assets/minecraft/optifine/cem/enchanting_book2.jem",
+            "assets/minecraft/optifine/cem/enchanting_book2_noanim.jem"
+        ]
+
+        for jem_name in book_jems:
             if jem_name in re_zf.namelist():
                 jem = json.loads(re_zf.read(jem_name).decode("utf-8-sig"))
-                jem["texture"] = BOOK_TEX
+                is_lectern = "lectern" in jem_name
                 for part in jem.get("models", []):
                     if part.get("part") == "book_spine":
-                        _tag_texture(part)
+                        if "submodels" in part:
+                            part["submodels"] = _clean_submodels(part["submodels"])
                         if "animations" in part:
                             new_anims = []
                             for anim in part["animations"]:
                                 new_anim = {}
                                 for k, expr in anim.items():
-                                    if isinstance(expr, str):
+                                    if "floor" in k or "circle" in k:
+                                        continue
+                                    if is_lectern and isinstance(expr, str):
                                         expr = expr.replace("time / 16", "frame_counter / 48")
                                         expr = expr.replace("time * 0.3", "frame_counter * 0.1")
                                         expr = expr.replace("time * 0.1", "frame_counter * 0.0333")
@@ -355,7 +378,8 @@ def main():
                                         expr = expr.replace("time * 0.05", "frame_counter * 0.0166")
                                         expr = expr.replace("time", "(frame_counter / 3)")
                                     new_anim[k] = expr
-                                new_anims.append(new_anim)
+                                if new_anim:
+                                    new_anims.append(new_anim)
                             part["animations"] = new_anims
                 extra_files[jem_name] = json.dumps(jem, indent="\t").encode("utf-8")
 
