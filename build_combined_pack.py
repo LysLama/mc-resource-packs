@@ -73,6 +73,11 @@ EXCLUDE_EXACT = {
     'assets/minecraft/optifine/random/entity/sheep/sheep3.png',
     'assets/minecraft/optifine/random/entity/sheep/fix_eye.png',
     'assets/minecraft/optifine/random/entity/reimagined_sheep/sheep_colors.pdn',
+    
+    # 5. Legacy 1.20 terrain and core shaders that conflict with Sodium 0.9.2
+    'assets/minecraft/shaders/core/rendertype_solid.fsh',
+    'assets/minecraft/shaders/core/rendertype_entity_solid.fsh',
+    'assets/minecraft/shaders/core/rendertype_entity_cutout.fsh',
 }
 
 # Prefixes to remove (outdated 256x128 random textures / properties from Reimagined base)
@@ -324,52 +329,156 @@ def main():
                 clean_im.save(buf, format='PNG')
                 extra_files[epath] = buf.getvalue()
 
-        # 9. Book CEM sanitization (Lectern & Enchanting Table):
-        #    In vanilla 26.3, BookModel uses RenderTypes::entitySolid which lacks alpha cutout/blending.
-        #    Upstream Reimagined defined a flat 2D 'floor' quad (36x36 on lectern, 44x44 on enchanting table)
-        #    for a magic floor circle. In 26.3 solid rendering, alpha=0 pixels around the circle render as
-        #    an opaque black square (or bluish-gray fog square if forced to translucent).
-        #    In fact, upstream Reimagined already blanked out this floor circle in 26.3 overlay texture,
-        #    leaving the 'floor' quad as an orphaned artifact.
-        #    Here we strip the 'floor' quad and 'scale_circle' from all book .jem models, while preserving
-        #    the 3D book model, page animations, and floating rune particles ('symbol1'..'symbol8').
-        #    For Lectern (which lacks 'time' in its render state), particle animations are converted from
-        #    'time' to 'frame_counter' to eliminate the 20Hz reset jitter.
-        #    See knowledge_base/resourcepacks/reimagined/lectern-black-square-fix.md
-        def _clean_submodels(submodels):
-            cleaned = []
-            for s in submodels:
-                if s.get("id") in ("floor", "scale_circle"):
-                    continue
-                if "submodels" in s:
-                    s["submodels"] = _clean_submodels(s["submodels"])
-                cleaned.append(s)
-            return cleaned
+        # 9. Modern 26.3 Core Shader (entity.fsh) for Alpha Cutout & Emissive Runes:
+        #    In vanilla 26.3, BookModel uses RenderPipelines.ENTITY_SOLID which lacks alpha discard.
+        #    This caused empty transparent pixels (alpha=0) of the floor magic circle and orbiting runes
+        #    to render as solid black squares / black cubes.
+        #    Here we provide modern 26.3 entity.fsh with:
+        #      1) `if (color.a < 0.1) discard;` to eliminate all black square/cube artifacts.
+        #      2) Emissive unshaded fullbright for Reimagined runes & circles (alpha == 252).
+        MODERN_ENTITY_FSH = """#version 330
+#extension GL_ARB_separate_shader_objects : require
 
-        book_jems = [
-            "assets/minecraft/optifine/cem/lectern_book.jem",
-            "assets/minecraft/optifine/cem/lectern_book2.jem",
-            "assets/minecraft/optifine/cem/enchanting_book.jem",
-            "assets/minecraft/optifine/cem/enchanting_book2.jem",
-            "assets/minecraft/optifine/cem/enchanting_book2_noanim.jem"
-        ]
+#ifdef GLINT
+#include <minecraft:globals.glsl>
+#endif
+#include <minecraft:fog.glsl>
+#include <minecraft:dynamictransforms.glsl>
+#include <minecraft:oit.glsl>
 
-        for jem_name in book_jems:
+uniform sampler2D Sampler0;
+
+#ifdef DISSOLVE
+uniform sampler2D DissolveMaskSampler;
+#endif
+
+#ifdef GLINT
+uniform sampler2D GlintSampler;
+#endif
+
+layout(location = 0) in float sphericalVertexDistance;
+layout(location = 1) in float cylindricalVertexDistance;
+#ifdef PER_FACE_LIGHTING
+layout(location = 2) in vec4 vertexPerFaceColorBack;
+layout(location = 3) in vec4 vertexPerFaceColorFront;
+#else
+layout(location = 2) in vec4 vertexColor;
+#endif
+
+#ifndef EMISSIVE
+layout(location = 4) in vec4 lightMapColor;
+#endif
+
+#ifndef NO_OVERLAY
+layout(location = 5) in vec4 overlayColor;
+#endif
+
+layout(location = 6) in vec2 texCoord0;
+#ifdef GLINT
+layout(location = 7) in vec2 texCoordGlint;
+#endif
+
+#ifndef OIT_ALPHA_ONLY
+layout(location = 0) out vec4 fragColor;
+#endif
+
+vec4 calculateFinalColor(vec4 color) {
+    #ifndef NO_OVERLAY
+    color.rgb = mix(overlayColor.rgb, color.rgb, overlayColor.a);
+    #endif
+
+    bool isLit = (round(texture(Sampler0, texCoord0).a * 255.0) == 252.0);
+
+    #ifndef EMISSIVE
+    if (!isLit) {
+        color *= lightMapColor;
+    }
+    #endif
+
+    #ifdef GLINT
+    vec4 glintColor = GlintAlpha * texture(GlintSampler, texCoordGlint);
+    // Matches BlendFuntion.GLINT
+    color.rgb += glintColor.rgb * glintColor.rgb;
+    #endif
+
+    #ifdef OIT_ACCUMULATE
+    color = sampleColorForAccumulation(color);
+    vec4 fogColor = vec4(FogColor.rgb * color.a, FogColor.a);
+    #else
+    vec4 fogColor = FogColor;
+    #endif
+
+    return apply_fog(color, sphericalVertexDistance, cylindricalVertexDistance, FogEnvironmentalStart, FogEnvironmentalEnd, FogRenderDistanceStart, FogRenderDistanceEnd, fogColor);
+}
+
+void main() {
+    vec4 color = texture(Sampler0, texCoord0);
+
+    #ifdef OIT_ADDITIVE
+    color.a = min(0.99, color.a);
+    #endif
+
+    #ifdef ALPHA_CUTOUT
+    if (color.a < ALPHA_CUTOUT) {
+        discard;
+    }
+    #else
+    if (color.a < 0.1) {
+        discard;
+    }
+    #endif
+
+    #ifdef PER_FACE_LIGHTING
+    vec4 faceVertexColor = gl_FrontFacing ? vertexPerFaceColorFront : vertexPerFaceColorBack;
+    #else
+    vec4 faceVertexColor = vertexColor;
+    #endif
+
+    #ifdef DISSOLVE
+    if (faceVertexColor.a < texture(DissolveMaskSampler, texCoord0).a) {
+        discard;
+    }
+    // The dissolve effect entirely replaces translucency
+    faceVertexColor.a = 1.0;
+    #endif
+
+    color *= faceVertexColor * ColorModulator;
+
+    #ifdef GLINT
+    color.a = max(color.a, GlintAlpha);
+    #endif
+
+    #ifdef OIT_ALPHA_ONLY
+    executeAlphaOnlyPhase(gl_FragCoord.z, color.a);
+    #else
+    fragColor = calculateFinalColor(color);
+    #endif
+}
+"""
+        extra_files['assets/minecraft/shaders/core/entity.fsh'] = MODERN_ENTITY_FSH.encode('utf-8')
+        extra_files['26.3/assets/minecraft/shaders/core/entity.fsh'] = MODERN_ENTITY_FSH.encode('utf-8')
+
+        # 10. Book texture aliases: ensure 26.3 overlay has full magic circle & runes texture
+        if 'assets/minecraft/textures/entity/enchantment/enchanting_table_book.png' in re_zf.namelist():
+            full_book_tex = re_zf.read('assets/minecraft/textures/entity/enchantment/enchanting_table_book.png')
+            extra_files['assets/minecraft/textures/entity/enchanting_table_book.png'] = full_book_tex
+            extra_files['26.3/assets/minecraft/textures/entity/enchanting_table_book.png'] = full_book_tex
+            extra_files['26.3/assets/minecraft/textures/entity/enchantment/enchanting_table_book.png'] = full_book_tex
+
+        # 11. Lectern Book CEM smooth rotation (convert `time` to `frame_counter` to eliminate 20Hz jitter):
+        #     Geometry (including magic circle `floor` and floating `symbol1`..'symbol8') is 100% PRESERVED.
+        for jem_name in ("assets/minecraft/optifine/cem/lectern_book.jem",
+                         "assets/minecraft/optifine/cem/lectern_book2.jem"):
             if jem_name in re_zf.namelist():
                 jem = json.loads(re_zf.read(jem_name).decode("utf-8-sig"))
-                is_lectern = "lectern" in jem_name
                 for part in jem.get("models", []):
                     if part.get("part") == "book_spine":
-                        if "submodels" in part:
-                            part["submodels"] = _clean_submodels(part["submodels"])
                         if "animations" in part:
                             new_anims = []
                             for anim in part["animations"]:
                                 new_anim = {}
                                 for k, expr in anim.items():
-                                    if "floor" in k or "circle" in k:
-                                        continue
-                                    if is_lectern and isinstance(expr, str):
+                                    if isinstance(expr, str):
                                         expr = expr.replace("time / 16", "frame_counter / 48")
                                         expr = expr.replace("time * 0.3", "frame_counter * 0.1")
                                         expr = expr.replace("time * 0.1", "frame_counter * 0.0333")
@@ -378,11 +487,9 @@ def main():
                                         expr = expr.replace("time * 0.05", "frame_counter * 0.0166")
                                         expr = expr.replace("time", "(frame_counter / 3)")
                                     new_anim[k] = expr
-                                if new_anim:
-                                    new_anims.append(new_anim)
+                                new_anims.append(new_anim)
                             part["animations"] = new_anims
-                extra_files[jem_name] = json.dumps(jem, indent="\t").encode("utf-8")
-
+                extra_files[jem_name] = json.dumps(jem, indent="	").encode("utf-8")
         print(f"Generated {len(extra_files)} compatibility alias files.")
 
         # Write output zip
