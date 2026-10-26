@@ -88,7 +88,8 @@ EXCLUDE_PREFIXES = (
 )
 
 MCMETA_OVERLAYS = [
-    {"directory": "26.2", "formats": [88, 999], "min_format": 88, "max_format": 999},
+    {"directory": "26.3", "formats": [97, 999], "min_format": 97, "max_format": 999},
+    {"directory": "26.2", "formats": [88, 96], "min_format": 88, "max_format": 96},
     {"directory": "26.1", "formats": [84, 87], "min_format": 84, "max_format": 87},
     {"directory": "1.21.11", "formats": [75, 83], "min_format": 75, "max_format": 83},
     {"directory": "1.21.6", "formats": [60, 74], "min_format": 60, "max_format": 74},
